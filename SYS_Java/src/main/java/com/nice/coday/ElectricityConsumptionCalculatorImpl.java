@@ -41,6 +41,8 @@ public class ElectricityConsumptionCalculatorImpl implements ElectricityConsumpt
     @Override
     public ConsumptionResult calculateElectricityAndTimeConsumption(ResourceInfo resourceInfo) throws IOException {
         ConsumptionResult consumptionResult = new ConsumptionResult();
+        Map<String, Long> totalCharginStationTimeMap = new HashMap<>();
+        List<ConsumptionDetails> consumptionDetailsList = new ArrayList<>();
 
         Map<String, VehicleInfo> vehicleInfoMap = readVehicleInfoFromCSV(resourceInfo.vehicleTypeInfoPath);
         List<Pair<Integer, String>> sortedPoints = new ArrayList<>();
@@ -48,18 +50,23 @@ public class ElectricityConsumptionCalculatorImpl implements ElectricityConsumpt
         sortedPoints.addAll(readPointsFromCSV(resourceInfo.chargingStationInfoPath, "ChargingStation"));
         Collections.sort(sortedPoints);
         Map<String, Map<String, Integer>> chargingTimeMap = readChargingTimeFromCSV(resourceInfo.timeToChargeVehicleInfoPath);
-        Map<String, Long> totalCharginStationTimeMap = new HashMap<>();
         List<TripInfo> trips = readTripInfoFromCSV(resourceInfo.tripDetailsPath);
 
         for (TripInfo trip : trips) {
             processTrip(trip, sortedPoints, vehicleInfoMap.get(trip.vehicleType), chargingTimeMap.get(trip.vehicleType), totalCharginStationTimeMap);
         }
 
-        return null; // Replace with actual calculation result if needed
+        consumptionResult.setTotalChargingStationTime(totalCharginStationTimeMap);
+
+        for (Map.Entry<String, VehicleInfo> entry : vehicleInfoMap.entrySet())
+            consumptionDetailsList.add(entry.getValue().getConsumptionDetails());
+
+        consumptionResult.setConsumptionDetails(consumptionDetailsList);
+
+        return consumptionResult;
     }
 
     private void processTrip(TripInfo trip, List<Pair<Integer, String>> sortedPoints, VehicleInfo vehicleInfo, Map<String, Integer> chargingTimeMap, Map<String, Long> totalCharginStationTimeMap) {
-        System.out.println("\nProcessing Trip ID: " + trip.id);
         int currentBattery = trip.remainingBatteryPercentage;
         int distanceCanTravel = currentBattery * vehicleInfo.getMileage() / 100;
         int lastChargingStationIndex = -1;
@@ -80,7 +87,6 @@ public class ElectricityConsumptionCalculatorImpl implements ElectricityConsumpt
             Pair<Integer, String> currentPoint = sortedPoints.get(i);
             int distanceTraveled = Math.abs(currentPoint.key - lastPointDistance);
 
-            if (lastChargingStationIndex != -1) System.out.println(sortedPoints.get(lastChargingStationIndex).value);
             if (distanceTraveled > distanceCanTravel) {
                 if (lastChargingStationIndex == -1 || Math.abs(sortedPoints.get(lastChargingStationIndex).key - currentPoint.key) > vehicleInfo.getMileage())
                     return;
@@ -107,7 +113,6 @@ public class ElectricityConsumptionCalculatorImpl implements ElectricityConsumpt
             lastPointDistance = currentPoint.key;
         }
 
-        System.out.println("Trip completed. Final battery percentage: " + currentBattery + "%");
     }
 
     // Other methods (readVehicleInfoFromCSV, readPointsFromCSV, readChargingTimeFromCSV, readTripInfoFromCSV) remain unchanged

@@ -46,11 +46,13 @@ public class ElectricityConsumptionCalculatorImpl implements ElectricityConsumpt
 
         Map<String, VehicleInfo> vehicleInfoMap = readVehicleInfoFromCSV(resourceInfo.vehicleTypeInfoPath);
         List<Pair<Integer, String>> sortedPoints = new ArrayList<>();
+
         sortedPoints.addAll(readPointsFromCSV(resourceInfo.entryExitPointInfoPath, "EntryExitPoint"));
         sortedPoints.addAll(readPointsFromCSV(resourceInfo.chargingStationInfoPath, "ChargingStation"));
-        Collections.sort(sortedPoints);
         Map<String, Map<String, Integer>> chargingTimeMap = readChargingTimeFromCSV(resourceInfo.timeToChargeVehicleInfoPath);
         List<TripInfo> trips = readTripInfoFromCSV(resourceInfo.tripDetailsPath);
+
+        Collections.sort(sortedPoints);
 
         for (TripInfo trip : trips) {
             processTrip(trip, sortedPoints, vehicleInfoMap.get(trip.vehicleType), chargingTimeMap.get(trip.vehicleType), totalCharginStationTimeMap);
@@ -93,16 +95,20 @@ public class ElectricityConsumptionCalculatorImpl implements ElectricityConsumpt
 
                 double chargePercentage = 100 - lastBatteryPercentage;
                 double totalUnitsRequired = vehicleInfo.getNumberOfUnitsForFullyCharge() * chargePercentage / 100;
-                double timeToCharge = totalUnitsRequired * chargingTimeMap.get(vehicleInfo.getVehicleType());
-//                ConsumptionDetails temp =  vehicleInfo.getConsumptionDetails();
+                String chargingStationId = sortedPoints.get(lastChargingStationIndex).value.split(":")[1];
+                double timeToCharge = totalUnitsRequired * chargingTimeMap.get(chargingStationId);
+
                 vehicleInfo.getConsumptionDetails().setTotalTimeRequired(vehicleInfo.getConsumptionDetails().getTotalTimeRequired() + (int) timeToCharge);
                 vehicleInfo.getConsumptionDetails().setTotalUnitConsumed(vehicleInfo.getConsumptionDetails().getTotalUnitConsumed() + totalUnitsRequired);
 
-                totalCharginStationTimeMap.put(sortedPoints.get(lastChargingStationIndex).value.split(":")[1], totalCharginStationTimeMap.get(sortedPoints.get(lastChargingStationIndex).value.split(":")[1]) + 1);
+                totalCharginStationTimeMap.put(chargingStationId, totalCharginStationTimeMap.getOrDefault(chargingStationId, 0l) + 1);
+
                 distanceCanTravel = vehicleInfo.getMileage() - Math.abs(sortedPoints.get(lastChargingStationIndex).key - currentPoint.key);
                 currentBattery = distanceCanTravel * 100 / vehicleInfo.getMileage();
                 lastChargingStationIndex = -1;
-            } else currentBattery = Math.max(0, currentBattery - (distanceTraveled * 100 / vehicleInfo.getMileage()));
+            } else {
+                currentBattery = Math.max(0, currentBattery - (distanceTraveled * 100 / vehicleInfo.getMileage()));
+            }
 
 
             if (currentPoint.value.startsWith("ChargingStation")) {

@@ -61,6 +61,9 @@ public class ElectricityConsumptionCalculatorImpl implements ElectricityConsumpt
         long lastPointDistance = sortedPoints.get(entryPointer).key;
         int lastChargingStationIndex = -1;
 
+        if (entryPointer != 0 && sortedPoints.get(entryPointer - 1).key.compareTo(sortedPoints.get(entryPointer).key) == 0 &&  sortedPoints.get(entryPointer - 1).value.startsWith("ChargingStation"))
+            lastChargingStationIndex = entryPointer - 1;
+
         BigDecimal currentBattery = BigDecimal.valueOf(trip.remainingBatteryPercentage);
         BigDecimal distanceCanTravel = calculateDistanceCanTravel(currentBattery, BigDecimal.valueOf(vehicleInfo.getMileage()));
         BigDecimal lastBatteryPercentage = BigDecimal.ZERO;
@@ -74,7 +77,7 @@ public class ElectricityConsumptionCalculatorImpl implements ElectricityConsumpt
             Pair<Integer, String> currentPoint = sortedPoints.get(i);
             BigDecimal distanceTraveled = BigDecimal.valueOf(Math.abs(currentPoint.key - lastPointDistance));
 
-            if (distanceTraveled.compareTo(distanceCanTravel) > 0 || (i == exitPointer && distanceTraveled.compareTo(distanceCanTravel) == 0)) {
+            if (distanceTraveled.compareTo(distanceCanTravel) > 0 ||  (i == exitPointer && distanceTraveled.compareTo(distanceCanTravel) == 0)) {
                 if (lastChargingStationIndex == -1) {
                     updateVehicleInfo(vehicleInfo, tempTotalTimeRequired, tempTotalUnitConsumed);
                     totalChargingStationTimeMap.putAll(tempChargingStationTimeMap);

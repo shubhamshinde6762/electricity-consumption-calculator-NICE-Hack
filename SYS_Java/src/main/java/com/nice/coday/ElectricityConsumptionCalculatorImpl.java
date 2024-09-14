@@ -40,25 +40,30 @@ class TripInfo {
 public class ElectricityConsumptionCalculatorImpl implements ElectricityConsumptionCalculator {
     @Override
     public ConsumptionResult calculateElectricityAndTimeConsumption(ResourceInfo resourceInfo) throws IOException {
+        ConsumptionResult consumptionResult = new ConsumptionResult();
+
         Map<String, VehicleInfo> vehicleInfoMap = readVehicleInfoFromCSV(resourceInfo.vehicleTypeInfoPath);
         List<Pair<Integer, String>> sortedPoints = new ArrayList<>();
         sortedPoints.addAll(readPointsFromCSV(resourceInfo.entryExitPointInfoPath, "EntryExitPoint"));
         sortedPoints.addAll(readPointsFromCSV(resourceInfo.chargingStationInfoPath, "ChargingStation"));
         Collections.sort(sortedPoints);
         Map<String, Map<String, Integer>> chargingTimeMap = readChargingTimeFromCSV(resourceInfo.timeToChargeVehicleInfoPath);
+        Map<String, Long> totalCharginStationTimeMap = new HashMap<>();
         List<TripInfo> trips = readTripInfoFromCSV(resourceInfo.tripDetailsPath);
 
         for (TripInfo trip : trips) {
-            processTrip(trip, sortedPoints, vehicleInfoMap.get(trip.vehicleType), chargingTimeMap.get(trip.vehicleType));
+            processTrip(trip, sortedPoints, vehicleInfoMap.get(trip.vehicleType), chargingTimeMap.get(trip.vehicleType), totalCharginStationTimeMap);
         }
 
         return null; // Replace with actual calculation result if needed
     }
 
-    private void processTrip(TripInfo trip, List<Pair<Integer, String>> sortedPoints, VehicleInfo vehicleInfo, Map<String, Integer> chargingTimeMap) {
+    private void processTrip(TripInfo trip, List<Pair<Integer, String>> sortedPoints, VehicleInfo vehicleInfo, Map<String, Integer> chargingTimeMap, Map<String, Long> totalCharginStationTimeMap) {
         System.out.println("\nProcessing Trip ID: " + trip.id);
         int currentBattery = trip.remainingBatteryPercentage;
+        int distanceCanTravel = currentBattery * vehicleInfo.getMileage() / 100;
         int lastChargingStationIndex = -1;
+        int lastBatteryPercentage = currentBattery;
         int entryIndex = -1;
         int exitIndex = -1;
         int lastPointDistance = 0;
@@ -69,25 +74,34 @@ public class ElectricityConsumptionCalculatorImpl implements ElectricityConsumpt
         }
 
         int direction = entryIndex < exitIndex ? 1 : -1;
+        vehicleInfo.getConsumptionDetails().setNumberOfTripsFinished(vehicleInfo.getConsumptionDetails().getNumberOfTripsFinished() + 1);
+
         for (int i = entryIndex; i != exitIndex + direction; i += direction) {
             Pair<Integer, String> currentPoint = sortedPoints.get(i);
             int distanceTraveled = Math.abs(currentPoint.key - lastPointDistance);
-            int batteryUsed = (distanceTraveled * 100) / (vehicleInfo.getMileage() * vehicleInfo.getNumberOfUnitsForFullyCharge());
-            currentBattery -= batteryUsed;
 
-            System.out.printf("At point %s (distance %d): Battery %d%%, Used %d%%\n",
-                    currentPoint.value, currentPoint.key, currentBattery, batteryUsed);
+            if (lastChargingStationIndex != -1) System.out.println(sortedPoints.get(lastChargingStationIndex).value);
+            if (distanceTraveled > distanceCanTravel) {
+                if (lastChargingStationIndex == -1 || Math.abs(sortedPoints.get(lastChargingStationIndex).key - currentPoint.key) > vehicleInfo.getMileage())
+                    return;
 
-            if (currentBattery < 20 && lastChargingStationIndex != -1) {
-                String chargingStation = sortedPoints.get(lastChargingStationIndex).value.split(":")[1];
-                int chargingTime = chargingTimeMap.get(chargingStation) * (100 - currentBattery) / 100;
-                currentBattery = 100;
-                System.out.printf("Charging at %s: Time taken %d minutes, Battery now 100%%\n",
-                        chargingStation, chargingTime);
-            }
+                double chargePercentage = 100 - lastBatteryPercentage;
+                double totalUnitsRequired = vehicleInfo.getNumberOfUnitsForFullyCharge() * chargePercentage / 100;
+                double timeToCharge = totalUnitsRequired * chargingTimeMap.get(vehicleInfo.getVehicleType());
+//                ConsumptionDetails temp =  vehicleInfo.getConsumptionDetails();
+                vehicleInfo.getConsumptionDetails().setTotalTimeRequired(vehicleInfo.getConsumptionDetails().getTotalTimeRequired() + (int) timeToCharge);
+                vehicleInfo.getConsumptionDetails().setTotalUnitConsumed(vehicleInfo.getConsumptionDetails().getTotalUnitConsumed() + totalUnitsRequired);
+
+                totalCharginStationTimeMap.put(sortedPoints.get(lastChargingStationIndex).value.split(":")[1], totalCharginStationTimeMap.get(sortedPoints.get(lastChargingStationIndex).value.split(":")[1]) + 1);
+                distanceCanTravel = vehicleInfo.getMileage() - Math.abs(sortedPoints.get(lastChargingStationIndex).key - currentPoint.key);
+                currentBattery = distanceCanTravel * 100 / vehicleInfo.getMileage();
+                lastChargingStationIndex = -1;
+            } else currentBattery = Math.max(0, currentBattery - (distanceTraveled * 100 / vehicleInfo.getMileage()));
+
 
             if (currentPoint.value.startsWith("ChargingStation")) {
                 lastChargingStationIndex = i;
+                lastBatteryPercentage = currentBattery;
             }
 
             lastPointDistance = currentPoint.key;
@@ -154,9 +168,7 @@ public class ElectricityConsumptionCalculatorImpl implements ElectricityConsumpt
                     String chargingStation = values[1].trim();
                     int timeToChargePerUnit = Integer.parseInt(values[2].trim());
 
-                    chargingTimeMap
-                            .computeIfAbsent(vehicleType, k -> new HashMap<>())
-                            .put(chargingStation, timeToChargePerUnit);
+                    chargingTimeMap.computeIfAbsent(vehicleType, k -> new HashMap<>()).put(chargingStation, timeToChargePerUnit);
                 }
             }
         }

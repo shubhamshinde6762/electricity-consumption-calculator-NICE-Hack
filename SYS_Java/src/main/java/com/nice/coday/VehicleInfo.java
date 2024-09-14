@@ -6,11 +6,13 @@ public class VehicleInfo {
     private String vehicleType;
     private int numberOfUnitsForFullyCharge;
     private int mileage;
+    private ConsumptionDetails consumptionDetails;
 
     public VehicleInfo(String vehicleType, int numberOfUnitsForFullyCharge, int mileage) {
         this.vehicleType = vehicleType;
         this.numberOfUnitsForFullyCharge = numberOfUnitsForFullyCharge;
         this.mileage = mileage;
+        this.consumptionDetails = new ConsumptionDetails();
     }
 
     public String getVehicleType() {
@@ -23,6 +25,10 @@ public class VehicleInfo {
 
     public int getNumberOfUnitsForFullyCharge() {
         return numberOfUnitsForFullyCharge;
+    }
+
+    public ConsumptionDetails getConsumptionDetails() {
+        return consumptionDetails;
     }
 
     public void setNumberOfUnitsForFullyCharge(int numberOfUnitsForFullyCharge) {

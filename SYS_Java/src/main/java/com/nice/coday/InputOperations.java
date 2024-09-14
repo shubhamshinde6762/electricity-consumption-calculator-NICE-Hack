@@ -21,7 +21,7 @@ public class InputOperations {
                     int numberOfUnitsForFullyCharge = Integer.parseInt(values[1].trim());
                     int mileage = Integer.parseInt(values[2].trim());
 
-                    VehicleInfo vehicleInfo = new VehicleInfo(vehicleType, numberOfUnitsForFullyCharge, mileage);
+                    VehicleInfo vehicleInfo = new VehicleInfo(vehicleType, (long) numberOfUnitsForFullyCharge, mileage);
                     vehicleInfoMap.put(vehicleType, vehicleInfo);
                 }
             }

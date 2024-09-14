@@ -4,11 +4,11 @@ import java.util.Objects;
 
 public class VehicleInfo {
     private String vehicleType;
-    private int numberOfUnitsForFullyCharge;
+    private Long numberOfUnitsForFullyCharge;
     private int mileage;
     private ConsumptionDetails consumptionDetails;
 
-    public VehicleInfo(String vehicleType, int numberOfUnitsForFullyCharge, int mileage) {
+    public VehicleInfo(String vehicleType, Long numberOfUnitsForFullyCharge, int mileage) {
         this.vehicleType = vehicleType;
         this.numberOfUnitsForFullyCharge = numberOfUnitsForFullyCharge;
         this.mileage = mileage;
@@ -24,7 +24,7 @@ public class VehicleInfo {
         this.vehicleType = vehicleType;
     }
 
-    public int getNumberOfUnitsForFullyCharge() {
+    public Long getNumberOfUnitsForFullyCharge() {
         return numberOfUnitsForFullyCharge;
     }
 
@@ -32,7 +32,7 @@ public class VehicleInfo {
         return consumptionDetails;
     }
 
-    public void setNumberOfUnitsForFullyCharge(int numberOfUnitsForFullyCharge) {
+    public void setNumberOfUnitsForFullyCharge(Long numberOfUnitsForFullyCharge) {
         this.numberOfUnitsForFullyCharge = numberOfUnitsForFullyCharge;
     }
 

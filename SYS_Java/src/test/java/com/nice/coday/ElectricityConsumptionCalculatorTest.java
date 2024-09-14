@@ -296,7 +296,7 @@ public class ElectricityConsumptionCalculatorTest {
         //Total time required for charging any vehicle at Charging Station Ch183
         long expectedTotalTimeRequiredAtC183 = 22999411L;
         long actualTotalTimeRequiredAtC183 = resultData.getTotalChargingStationTime().get("C183");
-        Assert.assertEquals(expectedTotalTimeRequiredAtC183, actualTotalTimeRequiredAtC183, 720L);
+            Assert.assertEquals(expectedTotalTimeRequiredAtC183, actualTotalTimeRequiredAtC183, 720L);
 
         //Number of trips finished
         long expectedNumberOfTripsFinished = 99227;

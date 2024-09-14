@@ -71,10 +71,10 @@ public class ElectricityConsumptionCalculatorImpl implements ElectricityConsumpt
     private void processTrip(TripInfo trip, List<Pair<Integer, String>> sortedPoints, VehicleInfo vehicleInfo,
                              Map<String, Integer> chargingTimeMap, Map<String, Long> totalChargingStationTimeMap) {
 
-        double currentBattery = trip.remainingBatteryPercentage;  // Use double for more precision
+        double currentBattery = trip.remainingBatteryPercentage;
         double distanceCanTravel = currentBattery * vehicleInfo.getMileage() / 100.0;
         int lastChargingStationIndex = -1;
-        double lastBatteryPercentage = currentBattery;  // Changed to double
+        double lastBatteryPercentage = currentBattery;
         int entryIndex = -1;
         int exitIndex = -1;
         long lastPointDistance = 0;
@@ -100,7 +100,16 @@ public class ElectricityConsumptionCalculatorImpl implements ElectricityConsumpt
             long distanceTraveled = Math.abs(currentPoint.key - lastPointDistance);
 
             if (distanceTraveled > distanceCanTravel) {
-                if (lastChargingStationIndex == -1 || Math.abs(sortedPoints.get(lastChargingStationIndex).key - currentPoint.key) > vehicleInfo.getMileage()) {
+                if (lastChargingStationIndex == -1) {
+                    vehicleInfo.getConsumptionDetails().setTotalTimeRequired(
+                            vehicleInfo.getConsumptionDetails().getTotalTimeRequired() + (long) tempTotalTimeRequired
+                    );
+                    vehicleInfo.getConsumptionDetails().setTotalUnitConsumed(
+                            vehicleInfo.getConsumptionDetails().getTotalUnitConsumed() + tempTotalUnitConsumed
+                    );
+                    for (Map.Entry<String, Long> entry : tempChargingStationTimeMap.entrySet()) {
+                        totalChargingStationTimeMap.put(entry.getKey(), entry.getValue());
+                    }
                     return;  // Cannot proceed further, exit the function
                 }
 
@@ -130,7 +139,6 @@ public class ElectricityConsumptionCalculatorImpl implements ElectricityConsumpt
             lastPointDistance = currentPoint.key;
         }
 
-        // Update the vehicle's consumption details with the precise values
         vehicleInfo.getConsumptionDetails().setTotalTimeRequired(
                 vehicleInfo.getConsumptionDetails().getTotalTimeRequired() + (long) tempTotalTimeRequired
         );
@@ -141,12 +149,10 @@ public class ElectricityConsumptionCalculatorImpl implements ElectricityConsumpt
                 vehicleInfo.getConsumptionDetails().getNumberOfTripsFinished() + 1
         );
 
-        // Update the total charging station time map with the new values
         for (Map.Entry<String, Long> entry : tempChargingStationTimeMap.entrySet()) {
             totalChargingStationTimeMap.put(entry.getKey(), entry.getValue());
         }
     }
-
 
 
     private Map<String, VehicleInfo> readVehicleInfoFromCSV(Path csvPath) throws IOException {

@@ -2,7 +2,7 @@ package com.nice.coday;
 
 public class ConsumptionDetails {
 
-    private  String vehicleType;
+    private String vehicleType;
     private Double totalUnitConsumed = 0.0;
     private Long totalTimeRequired = 0l;
     private Long numberOfTripsFinished = 0l;
@@ -27,11 +27,11 @@ public class ConsumptionDetails {
     }
 
     public Double getTotalUnitConsumed() {
-        return totalUnitConsumed;
+        return (roundToTwoDecimalPlaces(totalUnitConsumed));
     }
 
     public void setTotalUnitConsumed(Double totalUnitConsumed) {
-        this.totalUnitConsumed = totalUnitConsumed;
+        this.totalUnitConsumed = roundToTwoDecimalPlaces(totalUnitConsumed);
     }
 
     public Long getTotalTimeRequired() {
@@ -50,5 +50,7 @@ public class ConsumptionDetails {
         this.numberOfTripsFinished = numberOfTripsFinished;
     }
 
-
+    private Double roundToTwoDecimalPlaces(Double value) {
+        return Math.round(value * 100.0) / 100.0;
+    }
 }

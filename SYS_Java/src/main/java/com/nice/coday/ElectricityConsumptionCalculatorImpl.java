@@ -1,8 +1,6 @@
 package com.nice.coday;
 
 import java.io.IOException;
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.*;
 
 public class ElectricityConsumptionCalculatorImpl implements ElectricityConsumptionCalculator {
@@ -48,7 +46,6 @@ public class ElectricityConsumptionCalculatorImpl implements ElectricityConsumpt
         return consumptionResult;
     }
 
-
     private void processTrip(TripInfo trip, List<Pair<Integer, String>> sortedPoints, VehicleInfo vehicleInfo, Map<String, Integer> chargingTimeMap, Map<String, Long> totalChargingStationTimeMap) {
         int entryPointer = findPointIndex(sortedPoints, trip.entryPoint);
         int exitPointer = findPointIndex(sortedPoints, trip.exitPoint);
@@ -64,20 +61,20 @@ public class ElectricityConsumptionCalculatorImpl implements ElectricityConsumpt
         if (entryPointer != 0 && sortedPoints.get(entryPointer - 1).key.compareTo(sortedPoints.get(entryPointer).key) == 0 &&  sortedPoints.get(entryPointer - 1).value.startsWith("ChargingStation"))
             lastChargingStationIndex = entryPointer - 1;
 
-        BigDecimal currentBattery = BigDecimal.valueOf(trip.remainingBatteryPercentage);
-        BigDecimal distanceCanTravel = calculateDistanceCanTravel(currentBattery, BigDecimal.valueOf(vehicleInfo.getMileage()));
-        BigDecimal lastBatteryPercentage = BigDecimal.ZERO;
+        double currentBattery = trip.remainingBatteryPercentage;
+        double distanceCanTravel = calculateDistanceCanTravel(currentBattery, vehicleInfo.getMileage());
+        double lastBatteryPercentage = 0.0;
 
-        BigDecimal tempTotalTimeRequired = BigDecimal.ZERO;
-        BigDecimal tempTotalUnitConsumed = BigDecimal.ZERO;
+        long tempTotalTimeRequired = 0;
+        double tempTotalUnitConsumed = 0.0;
 
         Map<String, Long> tempChargingStationTimeMap = new HashMap<>(totalChargingStationTimeMap);
 
         for (int i = entryPointer; i != exitPointer + direction; i += direction) {
             Pair<Integer, String> currentPoint = sortedPoints.get(i);
-            BigDecimal distanceTraveled = BigDecimal.valueOf(Math.abs(currentPoint.key - lastPointDistance));
+            double distanceTraveled = Math.abs(currentPoint.key - lastPointDistance);
 
-            if (distanceTraveled.compareTo(distanceCanTravel) > 0 ||  (i == exitPointer && distanceTraveled.compareTo(distanceCanTravel) == 0)) {
+            if (distanceTraveled > distanceCanTravel || (i == exitPointer && distanceTraveled == distanceCanTravel)) {
                 if (lastChargingStationIndex == -1) {
                     updateVehicleInfo(vehicleInfo, tempTotalTimeRequired, tempTotalUnitConsumed);
                     totalChargingStationTimeMap.putAll(tempChargingStationTimeMap);
@@ -85,21 +82,20 @@ public class ElectricityConsumptionCalculatorImpl implements ElectricityConsumpt
                 }
 
                 ChargingResult chargingResult = chargeVehicle(lastBatteryPercentage, vehicleInfo, sortedPoints.get(lastChargingStationIndex), chargingTimeMap);
-                tempTotalTimeRequired = tempTotalTimeRequired.add(chargingResult.timeToCharge);
-                tempTotalUnitConsumed = tempTotalUnitConsumed.add(chargingResult.totalUnitsRequired);
-                tempChargingStationTimeMap.merge(chargingResult.chargingStationId, chargingResult.timeToCharge.longValue(), Long::sum);
+                tempTotalTimeRequired += chargingResult.timeToCharge;
+                tempTotalUnitConsumed += chargingResult.totalUnitsRequired;
+                tempChargingStationTimeMap.merge(chargingResult.chargingStationId, chargingResult.timeToCharge, Long::sum);
 
-                distanceCanTravel = calculateDistanceCanTravel(BigDecimal.valueOf(100.0), BigDecimal.valueOf(vehicleInfo.getMileage())).subtract(BigDecimal.valueOf(Math.abs(sortedPoints.get(lastChargingStationIndex).key - currentPoint.key)));
+                distanceCanTravel = calculateDistanceCanTravel(100.0, vehicleInfo.getMileage()) - Math.abs(sortedPoints.get(lastChargingStationIndex).key - currentPoint.key);
 
-                currentBattery = distanceCanTravel.multiply(BigDecimal.valueOf(100.0)).divide(BigDecimal.valueOf(vehicleInfo.getMileage()), DECIMAL_PLACES, RoundingMode.HALF_UP);
+                currentBattery = distanceCanTravel * 100.0 / vehicleInfo.getMileage();
                 lastChargingStationIndex = -1;
             } else {
-                currentBattery = currentBattery.subtract(distanceTraveled.multiply(BigDecimal.valueOf(100.0)).divide(BigDecimal.valueOf(vehicleInfo.getMileage()), DECIMAL_PLACES, RoundingMode.HALF_UP));
-                distanceCanTravel = distanceCanTravel.subtract(distanceTraveled);
+                currentBattery -= distanceTraveled * 100.0 / vehicleInfo.getMileage();
+                distanceCanTravel -= distanceTraveled;
             }
 
-
-            if (distanceCanTravel.compareTo(BigDecimal.ZERO) < 0) {
+            if (distanceCanTravel < 0) {
                 updateVehicleInfo(vehicleInfo, tempTotalTimeRequired, tempTotalUnitConsumed);
                 totalChargingStationTimeMap.putAll(tempChargingStationTimeMap);
                 return;
@@ -118,35 +114,34 @@ public class ElectricityConsumptionCalculatorImpl implements ElectricityConsumpt
         totalChargingStationTimeMap.putAll(tempChargingStationTimeMap);
     }
 
-
-    private BigDecimal calculateDistanceCanTravel(BigDecimal batteryPercentage, BigDecimal mileage) {
-        return batteryPercentage.multiply(mileage).divide(BigDecimal.valueOf(100.0), DECIMAL_PLACES, RoundingMode.HALF_UP);
+    private double calculateDistanceCanTravel(double batteryPercentage, double mileage) {
+        return batteryPercentage * mileage / 100.0;
     }
 
     private int findPointIndex(List<Pair<Integer, String>> sortedPoints, String point) {
         return sortedPoints.stream().filter(p -> p.value.endsWith(point)).findFirst().map(sortedPoints::indexOf).orElse(-1);
     }
 
-    private void updateVehicleInfo(VehicleInfo vehicleInfo, BigDecimal timeRequired, BigDecimal unitConsumed) {
+    private void updateVehicleInfo(VehicleInfo vehicleInfo, long timeRequired, double unitConsumed) {
         ConsumptionDetails details = vehicleInfo.getConsumptionDetails();
-        details.setTotalTimeRequired(details.getTotalTimeRequired() + timeRequired.longValue());
-        details.setTotalUnitConsumed(details.getTotalUnitConsumed() + unitConsumed.doubleValue());
+        details.setTotalTimeRequired(details.getTotalTimeRequired() + timeRequired);
+        details.setTotalUnitConsumed(details.getTotalUnitConsumed() + unitConsumed);
     }
 
-    private ChargingResult chargeVehicle(BigDecimal lastBatteryPercentage, VehicleInfo vehicleInfo, Pair<Integer, String> chargingStation, Map<String, Integer> chargingTimeMap) {
-        BigDecimal chargeNeeded = BigDecimal.valueOf(100.0).subtract(lastBatteryPercentage);
-        BigDecimal totalUnitsRequired = BigDecimal.valueOf(vehicleInfo.getNumberOfUnitsForFullyCharge()).multiply(chargeNeeded).divide(BigDecimal.valueOf(100.0), DECIMAL_PLACES, RoundingMode.HALF_UP);
+    private ChargingResult chargeVehicle(double lastBatteryPercentage, VehicleInfo vehicleInfo, Pair<Integer, String> chargingStation, Map<String, Integer> chargingTimeMap) {
+        double chargeNeeded = 100.0 - lastBatteryPercentage;
+        double totalUnitsRequired = vehicleInfo.getNumberOfUnitsForFullyCharge() * chargeNeeded / 100.0;
         String chargingStationId = chargingStation.value.split(":")[1];
-        BigDecimal timeToCharge = totalUnitsRequired.multiply(BigDecimal.valueOf(chargingTimeMap.getOrDefault(chargingStationId, 0)));
+        long timeToCharge = (long) (totalUnitsRequired * chargingTimeMap.getOrDefault(chargingStationId, 0));
         return new ChargingResult(chargingStationId, timeToCharge, totalUnitsRequired);
     }
 
     private static class ChargingResult {
         String chargingStationId;
-        BigDecimal timeToCharge;
-        BigDecimal totalUnitsRequired;
+        long timeToCharge;
+        double totalUnitsRequired;
 
-        ChargingResult(String chargingStationId, BigDecimal timeToCharge, BigDecimal totalUnitsRequired) {
+        ChargingResult(String chargingStationId, long timeToCharge, double totalUnitsRequired) {
             this.chargingStationId = chargingStationId;
             this.timeToCharge = timeToCharge;
             this.totalUnitsRequired = totalUnitsRequired;

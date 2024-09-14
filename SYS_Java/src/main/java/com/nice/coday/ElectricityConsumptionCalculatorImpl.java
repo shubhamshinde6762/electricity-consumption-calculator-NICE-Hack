@@ -95,7 +95,6 @@ public class ElectricityConsumptionCalculatorImpl implements ElectricityConsumpt
                 distanceCanTravel = distanceCanTravel.subtract(distanceTraveled);
             }
 
-//            System.out.println(distanceCanTravel);
 
             if (distanceCanTravel.compareTo(BigDecimal.ZERO) < 0) {
                 updateVehicleInfo(vehicleInfo, tempTotalTimeRequired, tempTotalUnitConsumed);

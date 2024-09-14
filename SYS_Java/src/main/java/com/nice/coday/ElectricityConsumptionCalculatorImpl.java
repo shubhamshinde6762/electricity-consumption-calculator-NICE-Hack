@@ -81,10 +81,12 @@ public class ElectricityConsumptionCalculatorImpl implements ElectricityConsumpt
         int exitIndex = -1;
         int lastPointDistance = 0;
 
-        // Step 1: Finding entry and exit points
-        //System.out.println("=== Starting Trip Processing ===");
-        //System.out.println("Trip Entry Point: " + trip.entryPoint + ", Exit Point: " + trip.exitPoint);
+        // Temporary storage for accumulating values
+        int tempTotalTimeRequired = 0;
+        double tempTotalUnitConsumed = 0;
+        Map<String, Long> tempChargingStationTimeMap = new HashMap<>(totalChargingStationTimeMap);
 
+        // Step 1: Finding entry and exit points
         for (int i = 0; i < sortedPoints.size(); i++) {
             if (sortedPoints.get(i).value.endsWith(trip.entryPoint)) entryIndex = i;
             if (sortedPoints.get(i).value.endsWith(trip.exitPoint)) exitIndex = i;
@@ -94,70 +96,60 @@ public class ElectricityConsumptionCalculatorImpl implements ElectricityConsumpt
             throw new IllegalArgumentException("Invalid entry or exit point for the trip.");
         }
 
-        //System.out.println("Entry Point Found at Index: " + entryIndex + " (" + sortedPoints.get(entryIndex).value + ")");
-        //System.out.println("Exit Point Found at Index: " + exitIndex + " (" + sortedPoints.get(exitIndex).value + ")");
-
         int direction = entryIndex < exitIndex ? 1 : -1;
         lastPointDistance = sortedPoints.get(entryIndex).key;
 
         // Step 2: Updating trip count
-        vehicleInfo.getConsumptionDetails().setNumberOfTripsFinished(vehicleInfo.getConsumptionDetails().getNumberOfTripsFinished() + 1);
-        //System.out.println("Starting Trip from index: " + entryIndex + " to index: " + exitIndex + ", Direction: " + (direction == 1 ? "Forward" : "Backward"));
 
         // Step 3: Processing each point in the trip
         for (int i = entryIndex + direction; i != exitIndex + direction; i += direction) {
             Pair<Integer, String> currentPoint = sortedPoints.get(i);
             int distanceTraveled = Math.abs(currentPoint.key - lastPointDistance);
 
-            //System.out.println("\n--- Step: Traveling to Point ---");
-            //System.out.println("At Point: " + currentPoint.value + ", Distance Traveled: " + distanceTraveled + " km, Distance Can Travel: " + distanceCanTravel + " km, Current Battery: " + currentBattery + "%");
-
             if (distanceTraveled > distanceCanTravel) {
-                //System.out.println(">>> Need to charge, Last Charging Station Index: " + lastChargingStationIndex);
                 if (lastChargingStationIndex == -1 || Math.abs(sortedPoints.get(lastChargingStationIndex).key - currentPoint.key) > vehicleInfo.getMileage()) {
-                    //System.out.println(">>> No suitable charging station available. Stopping the trip.");
-                    return;
+                    return; // No suitable charging station, stop the trip.
                 }
 
                 // Step 4: Calculate the charge needed
                 double chargeNeeded = 100 - lastBatteryPercentage;
                 double totalUnitsRequired = vehicleInfo.getNumberOfUnitsForFullyCharge() * chargeNeeded / 100;
-                //System.out.println(">>> Charging at Station: " + sortedPoints.get(lastChargingStationIndex).value + ", Units Required: " + totalUnitsRequired);
 
                 String chargingStationId = sortedPoints.get(lastChargingStationIndex).value.split(":")[1];
                 double timeToCharge = totalUnitsRequired * chargingTimeMap.getOrDefault(chargingStationId, 0);
 
-                // Update vehicle info with charging details
-                vehicleInfo.getConsumptionDetails().setTotalTimeRequired(vehicleInfo.getConsumptionDetails().getTotalTimeRequired() + (int) timeToCharge);
-                vehicleInfo.getConsumptionDetails().setTotalUnitConsumed(vehicleInfo.getConsumptionDetails().getTotalUnitConsumed() + totalUnitsRequired);
-                totalChargingStationTimeMap.put(chargingStationId, totalChargingStationTimeMap.getOrDefault(chargingStationId, 0L) + (long) timeToCharge);
-
-                //System.out.println(">>> Charging Completed. Time to Charge: " + timeToCharge + " minutes");
+                // Accumulate charging details in temporary variables
+                tempTotalTimeRequired += (int) timeToCharge;
+                tempTotalUnitConsumed += totalUnitsRequired;
+                tempChargingStationTimeMap.put(chargingStationId, tempChargingStationTimeMap.getOrDefault(chargingStationId, 0L) + (long) timeToCharge);
 
                 // Update battery and distance after charging
                 distanceCanTravel = vehicleInfo.getMileage() - Math.abs(sortedPoints.get(lastChargingStationIndex).key - currentPoint.key);
                 currentBattery = distanceCanTravel * 100 / vehicleInfo.getMileage();
-                //System.out.println(">>> New Distance Can Travel: " + distanceCanTravel + " km, New Battery: " + currentBattery + "%");
                 lastChargingStationIndex = -1;
             } else {
                 currentBattery = Math.max(0, currentBattery - (distanceTraveled * 100 / vehicleInfo.getMileage()));
                 distanceCanTravel -= distanceTraveled;
-                //System.out.println(">>> New Distance Can Travel: " + distanceCanTravel + " km, New Battery: " + currentBattery + "%");
             }
-
-            //System.out.println(">>> After Moving to Point: " + currentPoint.value + ", Remaining Battery: " + currentBattery + "%");
 
             // Step 5: Check for charging station
             if (currentPoint.value.startsWith("ChargingStation")) {
                 lastChargingStationIndex = i;
                 lastBatteryPercentage = currentBattery;
-                //System.out.println(">>> Charging Station Found at Index: " + lastChargingStationIndex + " (" + currentPoint.value + ")");
             }
 
             lastPointDistance = currentPoint.key;
         }
 
-        //System.out.println("=== Trip Successfully Processed ===");
+        // Step 6: After loop, update the vehicleInfo and charging station map
+        vehicleInfo.getConsumptionDetails().setTotalTimeRequired(vehicleInfo.getConsumptionDetails().getTotalTimeRequired() + tempTotalTimeRequired);
+        vehicleInfo.getConsumptionDetails().setTotalUnitConsumed(vehicleInfo.getConsumptionDetails().getTotalUnitConsumed() + tempTotalUnitConsumed);
+        vehicleInfo.getConsumptionDetails().setNumberOfTripsFinished(vehicleInfo.getConsumptionDetails().getNumberOfTripsFinished() + 1);
+
+        // Update the totalChargingStationTimeMap with the accumulated time
+        for (Map.Entry<String, Long> entry : tempChargingStationTimeMap.entrySet()) {
+            totalChargingStationTimeMap.put(entry.getKey(), entry.getValue());
+        }
     }
 
 

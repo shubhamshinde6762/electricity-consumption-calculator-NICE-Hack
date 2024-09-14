@@ -13,6 +13,7 @@ public class VehicleInfo {
         this.numberOfUnitsForFullyCharge = numberOfUnitsForFullyCharge;
         this.mileage = mileage;
         this.consumptionDetails = new ConsumptionDetails();
+        consumptionDetails.setVehicleType(vehicleType);
     }
 
     public String getVehicleType() {

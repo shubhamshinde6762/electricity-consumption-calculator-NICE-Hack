@@ -5,7 +5,6 @@ public class ConsumptionDetails {
     private  String vehicleType;
     private Double totalUnitConsumed = 0.0;
     private Long totalTimeRequired = 0l;
-
     private Long numberOfTripsFinished = 0l;
 
     public ConsumptionDetails() {

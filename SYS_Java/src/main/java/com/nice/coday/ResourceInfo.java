@@ -1,5 +1,4 @@
 package com.nice.coday;
-
 import java.nio.file.Path;
 
 public class ResourceInfo {
@@ -11,11 +10,10 @@ public class ResourceInfo {
     Path vehicleTypeInfoPath;
 
     public ResourceInfo(Path chargingStationInfoPath,
-                        Path entryExitPointInfoPath,
-                        Path timeToChargeVehicleInfoPath,
-                        Path tripDetailsPath,
-                        Path vehicleTypeInfoPath
-                        ) {
+            Path entryExitPointInfoPath,
+            Path timeToChargeVehicleInfoPath,
+            Path tripDetailsPath,
+            Path vehicleTypeInfoPath) {
         this.entryExitPointInfoPath = entryExitPointInfoPath;
         this.timeToChargeVehicleInfoPath = timeToChargeVehicleInfoPath;
         this.chargingStationInfoPath = chargingStationInfoPath;

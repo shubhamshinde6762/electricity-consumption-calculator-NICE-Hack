@@ -54,6 +54,10 @@ public class ElectricityConsumptionCalculatorImpl implements ElectricityConsumpt
 
         Collections.sort(sortedPoints);
 
+        for (Pair<Integer, String> point : sortedPoints) {
+            //System.out.println("Integer: " + point.key + ", String: " + point.value);
+        }
+
         for (TripInfo trip : trips) {
             processTrip(trip, sortedPoints, vehicleInfoMap.get(trip.vehicleType), chargingTimeMap.get(trip.vehicleType), totalCharginStationTimeMap);
         }
@@ -68,7 +72,7 @@ public class ElectricityConsumptionCalculatorImpl implements ElectricityConsumpt
         return consumptionResult;
     }
 
-    private void processTrip(TripInfo trip, List<Pair<Integer, String>> sortedPoints, VehicleInfo vehicleInfo, Map<String, Integer> chargingTimeMap, Map<String, Long> totalCharginStationTimeMap) {
+    private void processTrip(TripInfo trip, List<Pair<Integer, String>> sortedPoints, VehicleInfo vehicleInfo, Map<String, Integer> chargingTimeMap, Map<String, Long> totalChargingStationTimeMap) {
         int currentBattery = trip.remainingBatteryPercentage;
         int distanceCanTravel = currentBattery * vehicleInfo.getMileage() / 100;
         int lastChargingStationIndex = -1;
@@ -77,57 +81,92 @@ public class ElectricityConsumptionCalculatorImpl implements ElectricityConsumpt
         int exitIndex = -1;
         int lastPointDistance = 0;
 
+        // Step 1: Finding entry and exit points
+        //System.out.println("=== Starting Trip Processing ===");
+        //System.out.println("Trip Entry Point: " + trip.entryPoint + ", Exit Point: " + trip.exitPoint);
+
         for (int i = 0; i < sortedPoints.size(); i++) {
             if (sortedPoints.get(i).value.endsWith(trip.entryPoint)) entryIndex = i;
             if (sortedPoints.get(i).value.endsWith(trip.exitPoint)) exitIndex = i;
         }
 
-        int direction = entryIndex < exitIndex ? 1 : -1;
-        vehicleInfo.getConsumptionDetails().setNumberOfTripsFinished(vehicleInfo.getConsumptionDetails().getNumberOfTripsFinished() + 1);
+        if (entryIndex == -1 || exitIndex == -1) {
+            throw new IllegalArgumentException("Invalid entry or exit point for the trip.");
+        }
 
-        for (int i = entryIndex; i != exitIndex + direction; i += direction) {
+        //System.out.println("Entry Point Found at Index: " + entryIndex + " (" + sortedPoints.get(entryIndex).value + ")");
+        //System.out.println("Exit Point Found at Index: " + exitIndex + " (" + sortedPoints.get(exitIndex).value + ")");
+
+        int direction = entryIndex < exitIndex ? 1 : -1;
+        lastPointDistance = sortedPoints.get(entryIndex).key;
+
+        // Step 2: Updating trip count
+        vehicleInfo.getConsumptionDetails().setNumberOfTripsFinished(vehicleInfo.getConsumptionDetails().getNumberOfTripsFinished() + 1);
+        //System.out.println("Starting Trip from index: " + entryIndex + " to index: " + exitIndex + ", Direction: " + (direction == 1 ? "Forward" : "Backward"));
+
+        // Step 3: Processing each point in the trip
+        for (int i = entryIndex + direction; i != exitIndex + direction; i += direction) {
             Pair<Integer, String> currentPoint = sortedPoints.get(i);
             int distanceTraveled = Math.abs(currentPoint.key - lastPointDistance);
 
+            //System.out.println("\n--- Step: Traveling to Point ---");
+            //System.out.println("At Point: " + currentPoint.value + ", Distance Traveled: " + distanceTraveled + " km, Distance Can Travel: " + distanceCanTravel + " km, Current Battery: " + currentBattery + "%");
+
             if (distanceTraveled > distanceCanTravel) {
-                if (lastChargingStationIndex == -1 || Math.abs(sortedPoints.get(lastChargingStationIndex).key - currentPoint.key) > vehicleInfo.getMileage())
+                //System.out.println(">>> Need to charge, Last Charging Station Index: " + lastChargingStationIndex);
+                if (lastChargingStationIndex == -1 || Math.abs(sortedPoints.get(lastChargingStationIndex).key - currentPoint.key) > vehicleInfo.getMileage()) {
+                    //System.out.println(">>> No suitable charging station available. Stopping the trip.");
                     return;
+                }
 
-                double chargePercentage = 100 - lastBatteryPercentage;
-                double totalUnitsRequired = vehicleInfo.getNumberOfUnitsForFullyCharge() * chargePercentage / 100;
+                // Step 4: Calculate the charge needed
+                double chargeNeeded = 100 - lastBatteryPercentage;
+                double totalUnitsRequired = vehicleInfo.getNumberOfUnitsForFullyCharge() * chargeNeeded / 100;
+                //System.out.println(">>> Charging at Station: " + sortedPoints.get(lastChargingStationIndex).value + ", Units Required: " + totalUnitsRequired);
+
                 String chargingStationId = sortedPoints.get(lastChargingStationIndex).value.split(":")[1];
-                double timeToCharge = totalUnitsRequired * chargingTimeMap.get(chargingStationId);
+                double timeToCharge = totalUnitsRequired * chargingTimeMap.getOrDefault(chargingStationId, 0);
 
+                // Update vehicle info with charging details
                 vehicleInfo.getConsumptionDetails().setTotalTimeRequired(vehicleInfo.getConsumptionDetails().getTotalTimeRequired() + (int) timeToCharge);
                 vehicleInfo.getConsumptionDetails().setTotalUnitConsumed(vehicleInfo.getConsumptionDetails().getTotalUnitConsumed() + totalUnitsRequired);
+                totalChargingStationTimeMap.put(chargingStationId, totalChargingStationTimeMap.getOrDefault(chargingStationId, 0L) + (long) timeToCharge);
 
-                totalCharginStationTimeMap.put(chargingStationId, totalCharginStationTimeMap.getOrDefault(chargingStationId, 0l) + 1);
+                //System.out.println(">>> Charging Completed. Time to Charge: " + timeToCharge + " minutes");
 
+                // Update battery and distance after charging
                 distanceCanTravel = vehicleInfo.getMileage() - Math.abs(sortedPoints.get(lastChargingStationIndex).key - currentPoint.key);
                 currentBattery = distanceCanTravel * 100 / vehicleInfo.getMileage();
+                //System.out.println(">>> New Distance Can Travel: " + distanceCanTravel + " km, New Battery: " + currentBattery + "%");
                 lastChargingStationIndex = -1;
             } else {
                 currentBattery = Math.max(0, currentBattery - (distanceTraveled * 100 / vehicleInfo.getMileage()));
+                distanceCanTravel -= distanceTraveled;
+                //System.out.println(">>> New Distance Can Travel: " + distanceCanTravel + " km, New Battery: " + currentBattery + "%");
             }
 
+            //System.out.println(">>> After Moving to Point: " + currentPoint.value + ", Remaining Battery: " + currentBattery + "%");
 
+            // Step 5: Check for charging station
             if (currentPoint.value.startsWith("ChargingStation")) {
                 lastChargingStationIndex = i;
                 lastBatteryPercentage = currentBattery;
+                //System.out.println(">>> Charging Station Found at Index: " + lastChargingStationIndex + " (" + currentPoint.value + ")");
             }
 
             lastPointDistance = currentPoint.key;
         }
 
+        //System.out.println("=== Trip Successfully Processed ===");
     }
 
-    // Other methods (readVehicleInfoFromCSV, readPointsFromCSV, readChargingTimeFromCSV, readTripInfoFromCSV) remain unchanged
+
     private Map<String, VehicleInfo> readVehicleInfoFromCSV(Path csvPath) throws IOException {
         Map<String, VehicleInfo> vehicleInfoMap = new HashMap<>();
 
         try (BufferedReader br = Files.newBufferedReader(csvPath)) {
             String line;
-            br.readLine(); // Skip header
+            br.readLine();
 
             while ((line = br.readLine()) != null) {
                 String[] values = line.split(",");
@@ -150,7 +189,7 @@ public class ElectricityConsumptionCalculatorImpl implements ElectricityConsumpt
 
         try (BufferedReader br = Files.newBufferedReader(csvPath)) {
             String line;
-            br.readLine(); // Skip header
+            br.readLine();
 
             while ((line = br.readLine()) != null) {
                 String[] values = line.split(",");
@@ -192,7 +231,7 @@ public class ElectricityConsumptionCalculatorImpl implements ElectricityConsumpt
 
         try (BufferedReader br = Files.newBufferedReader(csvPath)) {
             String line;
-            br.readLine(); // Skip header
+            br.readLine();
 
             while ((line = br.readLine()) != null) {
                 String[] values = line.split(",");
